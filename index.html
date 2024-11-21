@@ -11,18 +11,36 @@
   <script src="https://unpkg.com/@jspsych/plugin-survey-text@2.0.0"></script>
   <script src="https://unpkg.com/@jspsych/plugin-html-button-response@1.2.0"></script>
   <link href="https://unpkg.com/jspsych@8.0.0/css/jspsych.css" rel="stylesheet" type="text/css" />
+  <script src="https://unpkg.com/@jspsych/plugin-survey-html-form@1.0.3"></script>
+  <!-- This is for data storage - please be sure to keep this script in all future updates to the code!! -->
+  <script src="https://unpkg.com/@jspsych-contrib/plugin-pipe"></script>
+
 </head>
 
 <body></body>
 <script>
 
-  // Initialize jsPsych + show progress bar up to
-  var jsPsych = initJsPsych({
+ // Initialize jsPsych + show progress bar up to
+ var jsPsych = initJsPsych({
     show_progress_bar: true,
-    on_finish: function() {
+    on_finish: function () {
       jsPsych.data.displayData();
     }
   });
+
+   //PLEASE KEEP FOR ALL FUTURE ITERATIONS
+  //create a unique filename by combining a random string and a millisecond counter (to avoid duplicates)
+  var random_id = jsPsych.randomization.randomID(10);
+  const date = new Date();
+  random_id = "p"+random_id.toString();
+  var file_id = random_id + "_" + date.getTime().toString();
+  const filename = `${file_id}.csv`;
+  //also store the random id for convenience
+  jsPsych.data.addProperties({
+        random_id: random_id,
+      });
+  //PLEASE KEEP FOR ALL FUTURE ITERATIONS
+
 
   // Create timeline
   var timeline = [];
@@ -135,6 +153,19 @@
   };
   timeline.push(participant_id_entry);
 
+  var overall_instructions = {
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `
+        <p>Welcome to the experiment.</p>
+        <p>In this task, you will see pairs of images.</p>
+        <p>Your job is to determine whether the image on the right is a rotated version of the image on the left.</p>
+        <p>Press the <strong>F</strong> key if the images are the same.</p>
+        <p>Press the <strong>J</strong> key if the images are different.</p>
+        <p>Press any key to begin.</p>
+    `
+};
+timeline.push(overall_instructions);
+
   //create an array of test images
    var test_images = [
 'stimuli/1_0_R.jpg','stimuli/1_0.jpg','stimuli/1_50_R.jpg','stimuli/1_50.jpg','stimuli/1_100_R.jpg',
@@ -215,14 +246,61 @@
 'stimuli/47_100.jpg', 'stimuli/47_150_R.jpg', 'stimuli/47_150.jpg', 'stimuli/48_0_R.jpg', 'stimuli/48_0.jpg', 
 'stimuli/48_50_R.jpg', 'stimuli/48_50.jpg', 'stimuli/48_100_R.jpg','stimuli/48_100.jpg', 'stimuli/48_150_R.jpg', 'stimuli/48_150.jpg'
    ];
-// Shuffle the test images
-var shuffled_test_images = jsPsych.randomization.repeat(test_images, 1);
+
+
+// code below ensures that for every participant, they see a different array of images 
+  // randomly select 24 images that are rotated 0 degrees & half of them contain incorrect rotation 
+  let zeroDegree = jsPsych.randomization.sampleWithoutReplacement(
+  test_images.filter(img => img.includes("_0.") && !img.includes("_R")), 12
+).concat(
+  jsPsych.randomization.sampleWithoutReplacement(
+    test_images.filter(img => img.includes("_0_R")), 12
+  )
+);
+  // randomly select 24 images that are rotated 50 degrres & half of them contain incorrect rotation 
+  let fiftyDegree = jsPsych.randomization.sampleWithoutReplacement(
+  test_images.filter(img => img.includes("_50.") && !img.includes("_R")), 12
+).concat(
+  jsPsych.randomization.sampleWithoutReplacement(
+    test_images.filter(img => img.includes("_50_R")), 12
+  )
+);
+
+  // randomly select 24 images that are rotated 100 degrees & half of them contain incorrect rotation 
+  let oneHundredDegree = jsPsych.randomization.sampleWithoutReplacement(
+  test_images.filter(img => img.includes("_100.") && !img.includes("_R")), 12
+).concat(
+  jsPsych.randomization.sampleWithoutReplacement(
+    test_images.filter(img => img.includes("_100_R")), 12
+  )
+);
+
+  // randomly select 24 images that are rotated 150 degrees & half of them contain incorrect rotation 
+  let oneHundredFiftyDegree = jsPsych.randomization.sampleWithoutReplacement(
+  test_images.filter(img => img.includes("_150.") && !img.includes("_R")), 12
+).concat(
+  jsPsych.randomization.sampleWithoutReplacement(
+    test_images.filter(img => img.includes("_150_R")), 12
+  )
+);
+
+  // add all images into array to be randomly tested 
+  var shuffled_test_images = jsPsych.randomization.shuffle(
+    zeroDegree.concat(fiftyDegree, oneHundredDegree, oneHundredFiftyDegree));
+
+// Print the selected images to the console
+console.log("Selected images for testing:", shuffled_test_images);
+console.log("Selected zero-degree images:", zeroDegree);
+console.log("Selected fifty-degree images:", fiftyDegree);
+console.log("Selected one-hundred-degree images:", oneHundredDegree);
+console.log("Selected one-hundred-fifty-degree images:", oneHundredFiftyDegree);
+
 
 // Initialize an empty array for trials
 var trials = [];
 
 // setting up counter to split length of exp based on image count 
-var halfwayPoint = Math.floor(test_images.length / 4)
+var halfwayPoint = Math.floor(shuffled_test_images.length / 2)
 var counter = 0 
 
 for (let i = 0; i < shuffled_test_images.length; i++) {
@@ -230,14 +308,14 @@ for (let i = 0; i < shuffled_test_images.length; i++) {
   let correct_response = shuffled_test_images[i].includes("_R") ? 'j' : 'f';
   
   //line below only relevant if we have a trial counter to display
-  ///let remainingTrials = shuffled_test_images.length - i;
+  //let remainingTrials = shuffled_test_images.length - i;
   
   // mental rotation trial
   var mental_rotation_trial = {
     type: jsPsychImageKeyboardResponse,
     stimulus: shuffled_test_images[i],
     choices: ['f', 'j'],
-    prompt: "<p>Press 'f' if the images are the same, 'j' if they are different.</p>" ,
+    prompt: "<p>Press 'f' if the images are the same, 'j' if they are different.</p>",
     
     //line below only relevant if we have a trial counter to display
     //+ "<p>Remaining images: " + remainingTrials + "</p>",
@@ -261,28 +339,358 @@ for (let i = 0; i < shuffled_test_images.length; i++) {
     }
   };
 
-  trials.push(mental_rotation_trial, feedback);
+  // fixation cross between each trial
+  var fixation = {
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: '<div style="font-size: 75px;">+</div>',
+    choices: "NO_KEYS",
+    trial_duration: 1000
+  };
+
+  trials.push(fixation, mental_rotation_trial, feedback);  
 
   // checking halfway status 
   if(++counter === halfwayPoint) {
     var break_trial = {
       type: jsPsychHtmlKeyboardResponse,
-      stimulus: "<p> Take a break! Exp continues in 1 minute . </p>",
-      trial_duration: 60000,
+      stimulus: "<p> Take a break! Experiment continues in 30 seconds . </p>",
+      trial_duration: 30000,
       choices: ['space']
     };
     trials.push(break_trial)
   }
 }
-// run exp
+
+
+  // run exp
 timeline.push(...trials);
 
-// Final message
-var final_message = {
+// demographics message
+var demographic_message = {
   type: jsPsychHtmlKeyboardResponse,
-  stimulus: "<p>Thank you for participating in our experiment! We aimed to test how your reaction time changed as you compared objects at different angles. </p><p>Press any key to continue.</p>"
+  stimulus: "<p>Thank you for participating!</p><p>Please press space to answer our survey.</p>",
+  choices: [' '] 
 };
-timeline.push(final_message);
+timeline.push(demographic_message);
+
+
+  // Adding VVIQ survey for data collection 
+  var VVIQ = {
+  type: jsPsychSurveyHtmlForm,
+  preamble: '<b>Vividness of Visual Imagery Questionnaire (VVIQ) (16 questions) </b>',
+  html: `
+    <div style="width: 600px; margin: 0 auto;">
+    <p><b>Think of some relative or friend whom you frequently see (but who is not with you at present) and consider carefully the picture that comes before your mind’s eye.</b></p>
+    <label>The exact contours of face, head, shoulders, and body: 
+      <select name="response_1" required>
+        <option value="" disabled selected>Select your option</option>
+        <option value="No image at all, you only “know” that you are thinking of the object">No image at all, you only “know”</option>
+        <option value="Dim and vague; flat">Dim and vague; flat</option>
+        <option value="Moderately clear and lively">Moderately clear and lively</option>
+        <option value="Clear and lively">Clear and lively</option>
+        <option value="Perfectly clear and lively as real seeing">Perfectly clear and lively as real seeing</option>
+      </select>
+    </label>
+    <br><br>
+    <label>Characteristic poses of head, attitudes of body, etc.
+      <select name="response_2" required>
+        <option value="" disabled selected>Select your option</option>
+        <option value="No image at all, you only “know” that you are thinking of the object">No image at all, you only “know”</option>
+        <option value="Dim and vague; flat">Dim and vague; flat</option>
+        <option value="Moderately clear and lively">Moderately clear and lively</option>
+        <option value="Clear and lively">Clear and lively</option>
+        <option value="Perfectly clear and lively as real seeing">Perfectly clear and lively as real seeing</option>
+      </select>
+    </label>
+    <br><br>
+    <label>The precise carriage, length of step, etc. in walking.
+      <select name="response_3" required>
+        <option value="" disabled selected>Select your option</option>
+        <option value="No image at all, you only “know” that you are thinking of the object">No image at all, you only “know”</option>
+        <option value="Dim and vague; flat">Dim and vague; flat</option>
+        <option value="Moderately clear and lively">Moderately clear and lively</option>
+        <option value="Clear and lively">Clear and lively</option>
+        <option value="Perfectly clear and lively as real seeing">Perfectly clear and lively as real seeing</option>
+      </select>
+    </label>
+    <br><br>
+    <label>The different colors worn in some familiar clothes.
+      <select name="response_4" required>
+        <option value="" disabled selected>Select your option</option>
+        <option value="No image at all, you only “know” that you are thinking of the object">No image at all, you only “know”</option>
+        <option value="Dim and vague; flat">Dim and vague; flat</option>
+        <option value="Moderately clear and lively">Moderately clear and lively</option>
+        <option value="Clear and lively">Clear and lively</option>
+        <option value="Perfectly clear and lively as real seeing">Perfectly clear and lively as real seeing</option>
+      </select>
+    </label>
+    <br><br>
+
+  
+    <p><b>Visualize a rising sun. Consider carefully the picture that comes before your mind’s eye.</b></p>
+    <label>The sun is rising above the horizon into a hazy sky.
+      <select name="response_5" required>
+        <option value="" disabled selected>Select your option</option>
+        <option value="No image at all, you only “know” that you are thinking of the object">No image at all, you only “know”</option>
+        <option value="Dim and vague; flat">Dim and vague; flat</option>
+        <option value="Moderately clear and lively">Moderately clear and lively</option>
+        <option value="Clear and lively">Clear and lively</option>
+        <option value="Perfectly clear and lively as real seeing">Perfectly clear and lively as real seeing</option>
+      </select>
+    </label>
+    <br><br>
+    <label>The sky clears and surrounds the sun with blueness.
+      <select name="response_6" required>
+        <option value="" disabled selected>Select your option</option>
+        <option value="No image at all, you only “know” that you are thinking of the object">No image at all, you only “know”</option>
+        <option value="Dim and vague; flat">Dim and vague; flat</option>
+        <option value="Moderately clear and lively">Moderately clear and lively</option>
+        <option value="Clear and lively">Clear and lively</option>
+        <option value="Perfectly clear and lively as real seeing">Perfectly clear and lively as real seeing</option>
+      </select>
+    </label>
+    <br><br>
+    <label>Clouds. A storm blows up, with flashes of lightening.
+      <select name="response_7" required>
+        <option value="" disabled selected>Select your option</option>
+        <option value="No image at all, you only “know” that you are thinking of the object">No image at all, you only “know”</option>
+        <option value="Dim and vague; flat">Dim and vague; flat</option>
+        <option value="Moderately clear and lively">Moderately clear and lively</option>
+        <option value="Clear and lively">Clear and lively</option>
+        <option value="Perfectly clear and lively as real seeing">Perfectly clear and lively as real seeing</option>
+      </select>
+    </label>
+    <br><br>
+    <label>A rainbow appears.
+      <select name="response_8" required>
+        <option value="" disabled selected>Select your option</option>
+        <option value="No image at all, you only “know” that you are thinking of the object">No image at all, you only “know”</option>
+        <option value="Dim and vague; flat">Dim and vague; flat</option>
+        <option value="Moderately clear and lively">Moderately clear and lively</option>
+        <option value="Clear and lively">Clear and lively</option>
+        <option value="Perfectly clear and lively as real seeing">Perfectly clear and lively as real seeing</option>
+      </select>
+    </label>
+    <br><br>
+
+
+  <p><b>Think of the front of a shop which you often go to. Consider the picture that comes before your mind’s eye.</b></p>
+      <label>The overall appearance of the shop from the opposite side of the road.
+        <select name="response_9" required>
+          <option value="" disabled selected>Select your option</option>
+          <option value="No image at all, you only “know” that you are thinking of the object">No image at all, you only “know”</option>
+          <option value="Dim and vague; flat">Dim and vague; flat</option>
+          <option value="Moderately clear and lively">Moderately clear and lively</option>
+          <option value="Clear and lively">Clear and lively</option>
+          <option value="Perfectly clear and lively as real seeing">Perfectly clear and lively as real seeing</option>
+        </select>
+      </label>
+      <br><br>
+    <label>A window display including colors, shape, and details of individual items for sale.
+      <select name="response_10" required>
+        <option value="" disabled selected>Select your option</option>
+        <option value="No image at all, you only “know” that you are thinking of the object">No image at all, you only “know”</option>
+        <option value="Dim and vague; flat">Dim and vague; flat</option>
+        <option value="Moderately clear and lively">Moderately clear and lively</option>
+        <option value="Clear and lively">Clear and lively</option>
+        <option value="Perfectly clear and lively as real seeing">Perfectly clear and lively as real seeing</option>
+      </select>
+    </label>
+    <br><br>
+    <label>You are near the entrance. The color, shape, and details of the door.
+      <select name="response_11" required>
+        <option value="" disabled selected>Select your option</option>
+        <option value="No image at all, you only “know” that you are thinking of the object">No image at all, you only “know”</option>
+        <option value="Dim and vague; flat">Dim and vague; flat</option>
+        <option value="Moderately clear and lively">Moderately clear and lively</option>
+        <option value="Clear and lively">Clear and lively</option>
+        <option value="Perfectly clear and lively as real seeing">Perfectly clear and lively as real seeing</option>
+      </select>
+    </label>
+    <br><br>
+    <label>You enter the shop and go to the counter. The counter assistant serves you. Money changes hands.
+      <select name="response_12" required>
+        <option value="" disabled selected>Select your option</option>
+        <option value="No image at all, you only “know” that you are thinking of the object">No image at all, you only “know”</option>
+        <option value="Dim and vague; flat">Dim and vague; flat</option>
+        <option value="Moderately clear and lively">Moderately clear and lively</option>
+        <option value="Clear and lively">Clear and lively</option>
+        <option value="Perfectly clear and lively as real seeing">Perfectly clear and lively as real seeing</option>
+      </select>
+    </label>
+    <br><br>
+
+
+  <p><b>Finally, think of a country scene which involves trees, mountains, and a lake. Consider the picture that comes before your mind’s eye.</b></p>
+      <label>The contours of the landscape.
+        <select name="response_13" required>
+          <option value="" disabled selected>Select your option</option>
+          <option value="No image at all, you only “know” that you are thinking of the object">No image at all, you only “know”</option>
+          <option value="Dim and vague; flat">Dim and vague; flat</option>
+          <option value="Moderately clear and lively">Moderately clear and lively</option>
+          <option value="Clear and lively">Clear and lively</option>
+          <option value="Perfectly clear and lively as real seeing">Perfectly clear and lively as real seeing</option>
+        </select>
+      </label>
+      <br><br>
+    <label>The color and shape of the trees.
+      <select name="response_14" required>
+        <option value="" disabled selected>Select your option</option>
+        <option value="No image at all, you only “know” that you are thinking of the object">No image at all, you only “know”</option>
+        <option value="Dim and vague; flat">Dim and vague; flat</option>
+        <option value="Moderately clear and lively">Moderately clear and lively</option>
+        <option value="Clear and lively">Clear and lively</option>
+        <option value="Perfectly clear and lively as real seeing">Perfectly clear and lively as real seeing</option>
+      </select>
+    </label>
+    <br><br>
+    <label>The color and shape of the lake.
+      <select name="response_15" required>
+        <option value="" disabled selected>Select your option</option>
+        <option value="No image at all, you only “know” that you are thinking of the object">No image at all, you only “know”</option>
+        <option value="Dim and vague; flat">Dim and vague; flat</option>
+        <option value="Moderately clear and lively">Moderately clear and lively</option>
+        <option value="Clear and lively">Clear and lively</option>
+        <option value="Perfectly clear and lively as real seeing">Perfectly clear and lively as real seeing</option>
+      </select>
+    </label>
+    <br><br>
+    <label>A strong wind blows on the tree and on the lake causing waves.
+      <select name="response_16" required>
+        <option value="" disabled selected>Select your option</option>
+        <option value="No image at all, you only “know” that you are thinking of the object">No image at all, you only “know”</option>
+        <option value="Dim and vague; flat">Dim and vague; flat</option>
+        <option value="Moderately clear and lively">Moderately clear and lively</option>
+        <option value="Clear and lively">Clear and lively</option>
+        <option value="Perfectly clear and lively as real seeing">Perfectly clear and lively as real seeing</option>
+      </select>
+    </label>
+    <br><br>   
+
+  
+  </div>
+  `
+};
+// push VVIQ to timeline
+  timeline.push(VVIQ);
+
+  var demographicSurvey = {
+    type: jsPsychSurveyHtmlForm,
+    preamble: '<p>Please complete this demographic questionnaire:</p>',
+    html: `
+        <div style="width: 600px; margin: 0 auto;">
+            <div class="form-group">
+                <label for="age">Age:</label>
+                <input type="number" id="age" name="age" min="18" max="100" required>
+            </div>
+            <div class="form-group">
+                <label for="gender">Gender:</label>
+                <select id="gender" name="gender" required>
+                    <option value="">Select...</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="non-binary">Non-binary</option>
+                    <option value="other">Other</option>
+                    <option value="prefer-not">Prefer not to say</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="education">Highest Level of Education:</label>
+                <select id="education" name="education" required>
+                    <option value="">Select...</option>
+                    <option value="high-school">High School</option>
+                    <option value="some-college">Some College</option>
+                    <option value="bachelors">Bachelor's Degree</option>
+                    <option value="masters">Master's Degree</option>
+                    <option value="doctorate">Doctorate</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="handedness">Handedness:</label>
+                <select id="handedness" name="handedness" required>
+                    <option value="">Select...</option>
+                    <option value="right">Right-handed</option>
+                    <option value="left">Left-handed</option>
+                    <option value="ambidextrous">Ambidextrous</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="vision">Vision:</label>
+                <select id="vision" name="vision" required>
+                    <option value="">Select...</option>
+                    <option value="normal">Normal</option>
+                    <option value="corrected">Corrected to normal</option>
+                    <option value="impaired">Visually impaired</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+                <label for="technical_difficulties">Did you experience any technical difficulties during the experiment? If yes, please describe:</label>
+                <textarea id="technical_difficulties" name="technical_difficulties" rows="4" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"></textarea>
+            </div>
+        <div class="form-group">
+                <label for="knowledge_check">What do you think the experiment was testing?</label>
+                <textarea id="knowledge_check" name="knowledge_check" rows="4" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"></textarea>
+            </div>
+        </div>
+    `,
+    button_label: 'Continue',
+    css_classes: ['survey-form'],
+    on_load: function() {
+        // Add custom CSS for form styling
+        document.head.insertAdjacentHTML('beforeend', `
+            <style>
+                .survey-form .form-group {
+                    margin: 20px 0;
+                }
+                .survey-form label {
+                    display: block;
+                    margin-bottom: 5px;
+                    font-weight: bold;
+                }
+                .survey-form input,
+                .survey-form select {
+                    width: 100%;
+                    padding: 8px;
+                    border: 1px solid #ccc;
+                    border-radius: 4px;
+                }
+            </style>
+        `);
+    }
+};
+
+// Add the survey to the timeline instead of the Google Form link
+timeline.push(demographicSurvey);  
+
+
+//PLEASE KEEP FOR ALL FUTURE ITERATIONS
+  //this portion of the code ensures that the data gets sent to be stored on OSF
+  const save_data = {
+    type: jsPsychPipe,
+    action: "save",
+    experiment_id: "gMpfSRsXGlob",
+    filename: filename,
+    data_string: () => jsPsych.data.get().csv()
+  };
+  timeline.push(save_data);
+  //PLEASE KEEP FOR ALL FUTURE ITERATIONS
+
+
+// debrief msg 
+var debriefing = {
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `
+        <p>Thank you for participating in this experiment!</p>
+        <p>This study was designed to investigate your ability to mentally rotate objects. By examining your responses, we aim to understand how visual-spatial information is processed and maintained!</p>
+        <p>If you have any questions or concerns about this study, please feel free to contact the Mental Rotation research team.</p>
+        <p>Press any key to finish the experiment.</p>
+    `
+  };
+
+  timeline.push(debriefing);
+
 
     // Exit fullscreen mode
     var exit_fullscreen = {
