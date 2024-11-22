@@ -75,7 +75,7 @@ processed_data <- exp_data %>%
   relocate(
     same_different,.after="angle"
   ) %>%
-  select(-c(clean_path,part3)) %>%
+  select(-c(clean_path:part3)) %>%
   mutate(
     is_right = ifelse(correct,1,0)
   ) %>%
@@ -86,3 +86,6 @@ processed_data <- exp_data %>%
   mutate(
     rt=as.numeric(as.character(rt))
   )
+
+#store processed and prepped data
+write_csv(processed_data,here(processed_data_directory,paste0(file_name,"-processed-data.csv")))
