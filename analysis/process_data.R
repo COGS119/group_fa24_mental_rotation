@@ -1,18 +1,12 @@
 library(here)
 library(tidyverse)
 library(jsonlite)
-library(testthat)
 
 processed_data_directory <- here("..","data","processed_data")
 file_name <- "mental_rotation"
 
 #read experiment data
 exp_data <- read_csv(here(processed_data_directory,paste0(file_name,"-alldata.csv")))
-
-#double check that participant ids are unique
-counts_by_random_id <- exp_data %>%
-  group_by(random_id) %>%
-  count()
 
 #extract json data
 participant_ids <- exp_data %>% 
@@ -38,6 +32,13 @@ exp_data <- exp_data %>%
   left_join(participant_ids) %>%
   left_join(vvq) %>%
   left_join(demo)
+
+#double check that participant ids are unique
+counts_by_random_id <- exp_data %>%
+  group_by(random_id,participant_id) %>%
+  count()
+#output to track participants
+write_csv(counts_by_random_id,here(processed_data_directory,paste0(file_name,"-participant-list.csv")))
 
 #filter and select relevant data
 processed_data <- exp_data %>%
