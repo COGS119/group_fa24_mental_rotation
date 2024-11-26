@@ -67,6 +67,9 @@ processed_data <- exp_data %>%
       is.na(part3) ~ "same"
     )
   ) %>%
+  mutate(
+    angle=as.numeric(as.character(angle))
+  ) %>%
   relocate(
     object_id,.after="stimulus"
   ) %>%
