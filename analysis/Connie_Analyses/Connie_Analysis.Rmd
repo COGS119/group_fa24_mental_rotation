@@ -1,0 +1,325 @@
+---
+title: "Mental_Rotation Analysis"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+
+
+```{r}
+#Install packages we want to use
+
+#this loads a helper function for installing R packages
+source('https://raw.githubusercontent.com/COGS119/tutorials/refs/heads/main/R/load_install_packages.R')
+
+#specify the name of all packages we want to use her
+packages_to_apt_install = c('tidyverse')
+
+#install packages specified above (note that we're using our old friend the for loop, this time in R syntax) into our google colab environment
+#For more: https://www.w3schools.com/r/r_for_loop.asp
+for (package in packages_to_apt_install) load_install_package(package, apt=TRUE)
+
+#load packages we want to use
+library(tidyverse)
+
+#set some basic plotting defaults
+theme_set(theme_minimal(base_size = 18))
+
+#check the version of R used
+print(R.version.string)
+```
+
+```{r}
+group_name <- "mental_rotation"
+#read in your data
+processed_data <- read_csv(paste0("https://raw.githubusercontent.com/COGS119/group_fa24_",group_name,"/refs/heads/main/data/processed_data/",group_name,"-processed-data.csv"))
+```
+## convert to Excel for checking out dataset
+```{r}
+install.packages("writexl")
+library(writexl)
+
+
+write_xlsx(processed_data,
+           path = "C:/Users/Connie/Desktop/119Connie.xlsx",
+           col_names = TRUE,
+           format_headers = TRUE)
+```
+
+## VVIQ - Dr. Zettersten 
+
+```{r}
+vviq <- processed_data %>%
+  select(participant_id, contains("response_")) %>%
+  distinct() %>%
+  group_by(participant_id) %>%
+  pivot_longer(cols=response_1:response_16,names_to="question_number", values_to = "likert_response") %>%
+  mutate(
+    likert_response_num = case_when(
+      
+    )
+  )
+
+#create summarized scores for each participant
+summarized_vviq
+```
+
+
+### Join back into dataframe
+
+```{r}
+processed_data <- processed_data %>%
+  left_join(summarized_vviq)
+```
+
+
+
+## (IGNORE) Connie Method
+```{r}
+
+reactionTimeandAccuracy = processed_data %>%
+  select(random_id, rt, stimulus, angle, response, correct, is_right, same_different)
+```
+
+
+```{r}
+reactionTimeandAccuracyTable = reactionTimeandAccuracy %>%
+  group_by(angle) %>%
+  summarize(meanRt = mean(rt),
+            meanAcc = sum(is_right == '1')/ n() * 100,
+            errorRate = sum(is_right == '0') / n() * 100,
+            seErrorRate = sqrt((errorRate / 100) * (1 - errorRate / 100) / n()) * 100)
+
+reactionTimeandAccuracyTable
+```
+
+```{r}
+reactionTimeandAccuracyTable %>%
+  ggplot(aes(y = meanRt,
+             x = angle)) + 
+  geom_point() + 
+   stat_summary(fun.data = "mean_se",
+               geom = "pointrange",
+               color = "black",
+               shape = 21,
+               size = 0.5) + 
+  coord_cartesian(ylim = c(0,4000)) +
+  scale_y_continuous(breaks = seq(from = 0, to = 4000, by = 500),
+                     labels = seq(from = 0, to = 4000, by = 500),
+                     expand = c(0,0)) +
+  labs(title = "Reaction Time across Angles",
+       y = "Response Time (ms)",
+       x = "Angle (deg)") +
+  geom_smooth(method="lm", se = FALSE, color = "black") +
+  theme_bw()
+```
+
+```{r}
+reactionTimeandAccuracyTable %>%
+  ggplot(aes(y = errorRate,
+             x = angle)) + 
+  geom_point() + 
+   stat_summary(fun.data = "mean_se",
+               geom = "pointrange",
+               color = "black",
+               shape = 21,
+               size = 0.5) + 
+  coord_cartesian(ylim = c(0,30)) +
+  scale_y_continuous(breaks = seq(from = 0, to = 30, by = 2),
+                     labels = seq(from = 0, to = 30, by = 2),
+                     expand = c(0,0)) +
+  labs(title = "Error Rate across Angles",
+       y = "Error Rate (%)",
+       x = "Angle (deg)") +
+  geom_smooth(method="lm", se = FALSE,
+              color = "black") +
+  theme_bw()
+```
+
+
+## Real Code (RT + Error Rate) (comment: need to decide whether to use mean_se or mean_cl_boot)
+```{r}
+processed_data %>%
+  ggplot(aes(x = angle, y = rt)) +
+  stat_summary(
+    fun = mean,
+    geom = "point",
+    color = "black",
+    size = 3
+  ) +
+  stat_summary(
+    fun.data = mean_se, # Automatically calculates mean and SE
+    geom = "pointrange",
+    color = "black",
+    shape = 21,
+    size = 0.5
+  ) +
+  coord_cartesian(ylim = c(0,5000)) +
+  scale_y_continuous(breaks = seq(from = 0, to = 5000, by = 500),
+                     labels = seq(from = 0, to = 5000, by = 500),
+                     expand = c(0,0)) +
+  labs(title = "Reaction Time across Angles",
+       y = "Response Time (ms)",
+       x = "Angle (deg)") +
+  geom_smooth(method="lm", se = FALSE, color = "black", linetype = "dotted") +
+  theme_bw()
+
+
+```
+
+```{r}
+reactionTimeandAccuracyTable %>%
+  ggplot(aes(x = angle, y = errorRate)) + 
+  geom_point(color = "blue", size = 2) + 
+  geom_errorbar(
+    aes(ymin = errorRate - seErrorRate, ymax = errorRate + seErrorRate), 
+    width = 0.2, 
+    color = "black"
+  ) +
+  coord_cartesian(ylim = c(0, 30)) +
+  scale_y_continuous(
+    breaks = seq(from = 0, to = 30, by = 2),
+    labels = seq(from = 0, to = 30, by = 2),
+    expand = c(0, 0)
+  ) +
+  labs(
+    title = "Error Rate across Angles",
+    y = "Error Rate (%)",
+    x = "Angle (deg)"
+  ) +
+  geom_smooth(
+    method = "lm", 
+    se = FALSE, 
+    color = "black", 
+    linetype = "dotted"
+  ) +
+  theme_bw()
+
+```
+
+## VVIQ Analyses (comment: need to decide whether to use mean_se or mean_cl_boot)
+
+```{r}
+VVIQData = processed_data %>%
+  mutate(
+    across(
+      starts_with("response_"), 
+      ~ case_when(
+        . == "No image at all, you only “know” that you are thinking of the object" ~ 1,
+        . == "Dim and vague; flat" ~ 2,
+        . == "Moderately clear and lively" ~ 3,
+        . == "Clear and lively" ~ 4,
+        . == "Perfectly clear and lively as real seeing" ~ 5,
+        TRUE ~ NA_real_))) %>%
+  mutate(VVIQRaw = rowSums(across(starts_with("response_")), na.rm = TRUE)) 
+```
+
+```{r}
+VVIQData %>%
+  ggplot(aes(x = VVIQRaw, y = rt)) +
+  stat_summary(
+    fun = mean,
+    geom = "point",
+    color = "black",
+    size = 3
+  ) +
+  stat_summary(
+    fun.data = mean_se, # Automatically calculates mean and SE
+    geom = "errorbar",
+    color = "black",
+    shape = 21,
+    size = 0.5
+  ) + 
+  labs(title = "Reaction Time across VVIQ scores",
+       y = "Response Time (ms)",
+       x = "VVIQ",
+       caption = "Red line represents aphantasia cutoff, blue line represents hyperphantasia cutoff") +
+  geom_smooth(method="lm", se = FALSE, color = "black", linetype = "dotted") +
+    geom_vline(xintercept = 20, color = "red", linetype = "dashed", size = 1) +  # conservative cutoff for aphantasia 
+    geom_vline(xintercept = 74, color = "blue", linetype = "dashed", size = 1) +  # conservative cutoff for hyperphantasia
+  theme_bw()
+  
+```
+
+
+## Demographics Analyses 
+### Gender 
+```{r}
+processed_data %>%
+  ggplot(aes(x = gender, y = rt)) +
+  stat_summary(
+    fun = mean,
+    geom = "point",
+    color = "black",
+    size = 3
+  ) +
+  stat_summary(
+    fun.data = mean_se, # Automatically calculates mean and SE
+    geom = "errorbar",
+    color = "black",
+    shape = 21,
+    size = 0.5
+  ) + 
+  labs(title = "Reaction Time across Gender",
+       y = "Response Time (ms)",
+       x = "Gender") +
+  theme_bw()
+```
+
+### Handeness
+```{r}
+processed_data %>%
+  ggplot(aes(x = handedness, y = rt)) +
+  stat_summary(
+    fun = mean,
+    geom = "point",
+    color = "black",
+    size = 3
+  ) +
+  stat_summary(
+    fun.data = mean_se, # Automatically calculates mean and SE
+    geom = "errorbar",
+    color = "black",
+    shape = 21,
+    size = 0.5
+  ) + 
+  labs(title = "Reaction Time across Handedness",
+       y = "Response Time (ms)",
+       x = "Handedness") +
+  theme_bw()
+```
+
+### Age
+```{r}
+processed_data %>%
+  ggplot(aes(x = age, y = rt)) +
+  stat_summary(
+    fun = mean,
+    geom = "point",
+    color = "black",
+    size = 3
+  ) +
+  stat_summary(
+    fun.data = mean_se, # Automatically calculates mean and SE
+    geom = "errorbar",
+    color = "black",
+    shape = 21,
+    size = 0.5
+  ) + 
+  labs(title = "Reaction Time across Age",
+       y = "Response Time (ms)",
+       x = "Age") +
+  geom_smooth(method="lm", se = FALSE, color = "black", linetype = "dotted") +
+  theme_bw()
+```
+
+## lmer analyses
+```{r}
+#install.packages("lme4")
+library(lme4)
+
+lmer(rt ~ age + (rt | participant_id), processed_data)
+```
+
+
