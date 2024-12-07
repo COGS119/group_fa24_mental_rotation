@@ -2,13 +2,17 @@
 title: "Mental_Rotation Analysis"
 output: html_notebook
 editor_options: 
-  chunk_output_type: inline
+  chunk_output_type: console
 ---
 
 
 
 ```{r}
 #Install packages we want to use
+#install.packages("lmer4")
+install.packages("lmerTest")
+#library(lmer4)
+library(lmerTest)
 
 #this loads a helper function for installing R packages
 source('https://raw.githubusercontent.com/COGS119/tutorials/refs/heads/main/R/load_install_packages.R')
@@ -33,7 +37,11 @@ print(R.version.string)
 ```{r}
 group_name <- "mental_rotation"
 #read in your data
-processed_data <- read_csv(paste0("https://raw.githubusercontent.com/COGS119/group_fa24_",group_name,"/refs/heads/main/data/processed_data/",group_name,"-processed-data.csv"))
+Originalprocessed_data <- read_csv(paste0("https://raw.githubusercontent.com/COGS119/group_fa24_",group_name,"/refs/heads/main/data/processed_data/",group_name,"-processed-data.csv"))
+
+processed_data = Originalprocessed_data %>%
+  filter(rt <= 10000) %>%
+  filter(correct == "TRUE")
 ```
 ## convert to Excel for checking out dataset
 ```{r}
@@ -138,21 +146,21 @@ reactionTimeandAccuracyTable %>%
 ```
 
 
+
 ## Real Code (RT + Error Rate) (comment: need to decide whether to use mean_se or mean_cl_boot)
+
+
 ```{r}
 processed_data %>%
-  ggplot(aes(x = angle, y = rt)) +
+  group_by(participant_id, angle) %>%
+  summarise(mean_rt = mean(rt, na.rm = TRUE)) %>%
+  ungroup() %>%
+  ggplot(aes(x = angle, y = mean_rt)) +
   stat_summary(
-    fun = mean,
-    geom = "point",
-    color = "black",
-    size = 3
-  ) +
-  stat_summary(
-    fun.data = mean_se, # Automatically calculates mean and SE
+    fun.data = mean_se, 
     geom = "pointrange",
-    color = "black",
-    shape = 21,
+    color = "red",
+    shape = 20,
     size = 0.5
   ) +
   coord_cartesian(ylim = c(0,5000)) +
@@ -165,15 +173,37 @@ processed_data %>%
   geom_smooth(method="lm", se = FALSE, color = "black", linetype = "dotted") +
   theme_bw()
 
+#analyses 
+summary(aov(rt ~ angle * same_different + Error(participant_id/angle*same_different), data = processed_data))
+
+summary(lmer(rt ~ 1 + angle + (1 + angle | participant_id) + (1 + angle | object_id), data = processed_data))
 
 ```
 
+
 ```{r}
-reactionTimeandAccuracyTable %>%
-  ggplot(aes(x = angle, y = errorRate)) + 
+subj_averagesER <- Originalprocessed_data %>%
+  group_by(random_id,angle) %>%
+  summarize(meanRt = mean(rt),
+            meanAcc = sum(is_right == '1')/ n() * 100,
+            errorRate = sum(is_right == '0') / n() * 100)
+
+overall_averagesER <- subj_averagesER %>%
+  group_by(angle) %>%
+  summarize(
+    N=n(),
+    avg_rt = mean(meanRt),
+    avg_accuracy = mean(meanAcc),
+    avg_error_rate = mean(errorRate),
+    sd_error_rate = sd(errorRate),
+    se_error_rate = sd_error_rate/sqrt(N)
+  )
+
+overall_averagesER %>%
+  ggplot(aes(x = angle, y = avg_error_rate)) + 
   geom_point(color = "blue", size = 2) + 
   geom_errorbar(
-    aes(ymin = errorRate - seErrorRate, ymax = errorRate + seErrorRate), 
+    aes(ymin = avg_error_rate - se_error_rate, ymax = avg_error_rate + se_error_rate), 
     width = 0.2, 
     color = "black"
   ) +
@@ -196,7 +226,40 @@ reactionTimeandAccuracyTable %>%
   ) +
   theme_bw()
 
+#analyses 
+summary(aov(
+  errorRate ~ angle + Error(random_id / angle), data = subj_averagesER))
+
 ```
+
+```{r}
+processed_data %>%
+  group_by(participant_id, angle, same_different) %>%
+  summarise(mean_rt = mean(rt, na.rm = TRUE)) %>%
+  ungroup() %>%
+  ggplot(aes(x = angle, y = mean_rt, fill = same_different)) +
+  stat_summary(
+    fun.data = mean_se, 
+    geom = "pointrange",
+    color = "black",
+    shape = 21,
+    size = 0.5
+  ) +
+  coord_cartesian(ylim = c(0,5000)) +
+  scale_y_continuous(breaks = seq(from = 0, to = 5000, by = 500),
+                     labels = seq(from = 0, to = 5000, by = 500),
+                     expand = c(0,0)) +
+  labs(title = "Reaction Time across Angles taking Same-Different into Account",
+       y = "Response Time (ms)",
+       x = "Angle (deg)") +
+  geom_smooth(method="lm", se = FALSE, color = "black", linetype = "dotted") +
+  theme_bw()
+
+#Analyses
+summary(lmer(rt ~ 1 + angle*same_different + (1 + angle | participant_id) + (1 + angle | object_id), data = processed_data))
+
+```
+
 
 ## VVIQ Analyses (comment: need to decide whether to use mean_se or mean_cl_boot)
 
@@ -217,7 +280,10 @@ VVIQData = processed_data %>%
 
 ```{r}
 VVIQData %>%
-  ggplot(aes(x = VVIQRaw, y = rt)) +
+   group_by(participant_id, VVIQRaw) %>%
+  summarise(mean_rt = mean(rt, na.rm = TRUE)) %>%
+  ungroup() %>%
+  ggplot(aes(x = VVIQRaw, y = mean_rt)) +
   stat_summary(
     fun = mean,
     geom = "point",
@@ -240,14 +306,26 @@ VVIQData %>%
     geom_vline(xintercept = 74, color = "blue", linetype = "dashed", size = 1) +  # conservative cutoff for hyperphantasia
   theme_bw()
   
+# counting participants per VVIQ score
+VVIQData %>%
+   group_by(VVIQRaw) %>%
+  summarize(number = n() / 96)
+
+#analyses 
+summary(aov(rt ~ VVIQRaw + Error(participant_id), data = VVIQData))
+
+summary(lmer(rt ~ 1 + angle*VVIQRaw + (1 + angle | participant_id) + (1 + angle | object_id), data = VVIQData))
 ```
 
 
 ## Demographics Analyses 
 ### Gender 
 ```{r}
-processed_data %>%
-  ggplot(aes(x = gender, y = rt)) +
+processed_data  %>%
+   group_by(participant_id, gender) %>%
+  summarise(mean_rt = mean(rt, na.rm = TRUE)) %>%
+  ungroup() %>%
+  ggplot(aes(x = gender, y = mean_rt)) +
   stat_summary(
     fun = mean,
     geom = "point",
@@ -259,18 +337,72 @@ processed_data %>%
     geom = "errorbar",
     color = "black",
     shape = 21,
-    size = 0.5
+    size = 0.2,
+    width = 0.5
   ) + 
   labs(title = "Reaction Time across Gender",
        y = "Response Time (ms)",
        x = "Gender") +
   theme_bw()
+
+# counting participants per gender
+processed_data %>%
+   group_by(gender) %>%
+  summarize(number = n()/ 96)
+
+#analyses 
+summary(aov(rt ~ gender + Error(participant_id), data = processed_data))
+summary(lmer(rt ~ 1 + angle*gender + (1 + angle | participant_id) + (1 + angle | object_id), data = VVIQData))
+
+
+
+
+Originalprocessed_data %>%
+  group_by(random_id, angle) %>%
+  summarize(
+    meanRt = mean(rt, na.rm = TRUE),
+    meanAcc = sum(is_right == '1') / n() * 100,
+    errorRate = sum(is_right == '0') / n() * 100,
+    .groups = "drop"
+  ) %>%
+  left_join(Originalprocessed_data, by = "random_id") %>% # Merge with original data if necessary
+  group_by(participant_id, gender) %>%
+  summarize(
+    mean_rt = mean(rt, na.rm = TRUE),
+    avg_error_rate = mean(errorRate, na.rm = TRUE),
+    sd_error_rate = sd(errorRate, na.rm = TRUE),
+    se_error_rate = sd_error_rate / sqrt(n()),
+    .groups = "drop"
+  ) %>%
+  ggplot(aes(x = gender, y = avg_error_rate)) +
+  stat_summary(
+    fun = mean,
+    geom = "point",
+    color = "black",
+    size = 3
+  ) +
+  stat_summary(
+    fun.data = mean_se, # Use mean and SE for error bars
+    geom = "errorbar",
+    color = "black",
+    width = 0.5
+  ) +
+  labs(
+    title = "Error Rate across Gender",
+    y = "Error Rate(%)",
+    x = "Gender"
+  ) +
+  theme_bw()
+
 ```
 
 ### Handeness
 ```{r}
-processed_data %>%
-  ggplot(aes(x = handedness, y = rt)) +
+processed_data  %>%
+   group_by(participant_id, handedness) %>%
+  summarise(mean_rt = mean(rt, na.rm = TRUE)) %>%
+  ungroup() %>%
+  ggplot(aes(x = handedness, y = mean_rt)) +
   stat_summary(
     fun = mean,
     geom = "point",
@@ -282,18 +414,30 @@ processed_data %>%
     geom = "errorbar",
     color = "black",
     shape = 21,
-    size = 0.5
+    size = 0.5,
+    width = 0.5
   ) + 
   labs(title = "Reaction Time across Handedness",
        y = "Response Time (ms)",
        x = "Handedness") +
   theme_bw()
+
+# counting participants 
+processed_data %>%
+   group_by(handedness) %>%
+  summarize(number = n() / 96)
+#analyses 
+summary(aov(rt ~ handedness + Error(participant_id), data = processed_data))
+summary(lmer(rt ~ 1 + angle*handedness + (1 + angle | participant_id) + (1 + angle | object_id), data = VVIQData))
 ```
 
 ### Age
 ```{r}
-processed_data %>%
-  ggplot(aes(x = age, y = rt)) +
+processed_data  %>%
+   group_by(participant_id, age) %>%
+  summarise(mean_rt = mean(rt, na.rm = TRUE)) %>%
+  ungroup() %>%
+  ggplot(aes(x = age, y = mean_rt)) +
   stat_summary(
     fun = mean,
     geom = "point",
@@ -312,14 +456,11 @@ processed_data %>%
        x = "Age") +
   geom_smooth(method="lm", se = FALSE, color = "black", linetype = "dotted") +
   theme_bw()
-```
 
-## lmer analyses
-```{r}
-#install.packages("lme4")
-library(lme4)
+#analyses 
+summary(aov(rt ~ age + Error(participant_id), data = processed_data))
+summary(lmer(rt ~ 1 + angle*age + (1 + angle | participant_id) + (1 + angle | object_id), data = VVIQData))
 
-lmer(rt ~ age + (rt | participant_id), processed_data)
 ```
 
 
